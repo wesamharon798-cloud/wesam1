@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منظومة تسجيل وحصر المخالفات - إدارة الصلاحيات</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- SheetJS (xlsx) for Excel Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f3f4f6;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col">
+
+    <!-- ==================== LOGIN SCREEN ==================== -->
+    <div id="loginSection" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-700/30">
+            <div class="bg-gradient-to-l from-blue-700 to-blue-900 p-6 text-white text-center">
+                <div class="bg-white/15 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 backdrop-blur-sm">
+                    <i data-lucide="shield-check" class="w-9 h-9 text-white"></i>
+                </div>
+                <h1 class="text-xl font-extrabold">منظومة تسجيل وحصر المخالفات</h1>
+                <p class="text-xs text-blue-200 mt-1">تسجيل الدخول إلى لوحة العمل السحابية</p>
+            </div>
+
+            <form id="loginForm" class="p-6 space-y-5">
+                <div id="loginError" class="hidden bg-red-50 border-r-4 border-red-500 p-3 rounded-lg text-xs text-red-700 font-semibold"></div>
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1.5">البريد الإلكتروني</label>
+                    <div class="relative">
+                        <i data-lucide="mail" class="w-4 h-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2"></i>
+                        <input type="email" id="loginEmail" required placeholder="example@domain.com" dir="ltr" style="text-align: right;"
+                            class="w-full rounded-xl border border-gray-300 pr-10 pl-3.5 py-2.5 text-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1.5">كلمة المرور</label>
+                    <div class="relative">
+                        <i data-lucide="lock" class="w-4 h-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2"></i>
+                        <input type="password" id="loginPassword" required placeholder="••••••••" dir="ltr" style="text-align: right;"
+                            class="w-full rounded-xl border border-gray-300 pr-10 pl-3.5 py-2.5 text-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                    </div>
+                </div>
+
+                <button type="submit" id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer">
+                    <i data-lucide="log-in" class="w-4 h-4"></i>
+                    <span id="loginBtnText">دخول إلى المنظومة</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== MAIN APP ==================== -->
+    <div id="appSection" class="hidden flex-col min-h-screen">
+        
+        <!-- Header -->
+        <header class="bg-gradient-to-l from-slate-900 via-blue-950 to-slate-900 text-white shadow-lg sticky top-0 z-30">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row justify-between items-center gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-600 p-2.5 rounded-xl shadow-inner">
+                        <i data-lucide="file-spreadsheet" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg sm:text-xl font-extrabold tracking-tight">منظومة تسجيل وحصر المخالفات</h1>
+                        <div class="flex items-center gap-2 text-xs text-blue-200 mt-0.5">
+                            <span id="currentUserName" class="font-bold text-white"></span>
+                            <span>•</span>
+                            <span id="currentUserRoleBadge" class="px-2 py-0.5 rounded-full text-[11px] font-bold"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <!-- Connection Status -->
+                    <div class="flex items-center gap-1.5 text-xs bg-slate-800/90 border border-slate-700 px-3 py-1.5 rounded-full">
+                        <span id="statusDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        <span id="statusText">متصل بـ Firebase</span>
+                    </div>
+
+                    <!-- Admin Users Button (Visible only to Admin) -->
+                    <button id="adminPanelBtn" onclick="toggleAdminModal(true)" class="hidden flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-3.5 rounded-xl shadow transition cursor-pointer text-xs sm:text-sm">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                        <span>إدارة المستخدمين</span>
+                    </button>
+
+                    <!-- Export Excel Button -->
+                    <button onclick="exportToExcel()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3.5 rounded-xl shadow transition cursor-pointer text-xs sm:text-sm">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>تصدير Excel</span>
+                    </button>
+
+                    <!-- Logout Button -->
+                    <button onclick="logoutUser()" title="تسجيل الخروج" class="flex items-center gap-1.5 bg-red-600/90 hover:bg-red-600 text-white font-bold py-2 px-3 rounded-xl shadow transition cursor-pointer text-xs sm:text-sm">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">خروج</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+            <!-- Alert Banner if Firestore rules block cloud write -->
+            <div id="firebaseAlert" class="hidden bg-amber-50 border-r-4 border-amber-500 p-4 rounded-lg shadow-sm text-sm text-amber-900 flex items-start justify-between gap-4">
+                <div class="flex items-start gap-3">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+                    <div>
+                        <p class="font-bold">تنبيه بخصوص قواعد الأمان في Firebase Firestore:</p>
+                        <p id="firebaseAlertMsg" class="mt-1 text-xs">تعذر الاتصال المباشر بالسحابة بسبب قيود الصلاحيات (Rules). يتم الحفظ مؤقتاً على المتصفح.</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('firebaseAlert').classList.add('hidden')" class="text-amber-700 hover:text-amber-950">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Data Entry Form Card -->
+            <section class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50/80 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="file-plus" class="w-5 h-5 text-blue-600"></i>
+                        <h2 id="formTitle" class="text-lg font-bold text-gray-800">إدخال بيانات مخالفة جديدة</h2>
+                    </div>
+                    <button type="button" onclick="resetForm()" class="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1 transition cursor-pointer">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                        <span>تفريغ الحقول</span>
+                    </button>
+                </div>
+
+                <form id="violationForm" class="p-6 space-y-6">
+                    <input type="hidden" id="editId" value="">
+                    
+                    <!-- Group 1 -->
+                    <div>
+                        <h3 class="text-xs font-bold text-blue-700 mb-3 flex items-center gap-1.5">
+                            <i data-lucide="map-pin" class="w-4 h-4"></i>
+                            <span>أولاً: البيانات الإدارية والنطاق الجغرافي</span>
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">الإدارة <span class="text-red-500">*</span></label>
+                                <input type="text" id="administration" required placeholder="مثال: إدارة ري..." class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">الهندسة <span class="text-red-500">*</span></label>
+                                <input type="text" id="engineering" required placeholder="مثال: هندسة ري..." class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">المحافظة <span class="text-red-500">*</span></label>
+                                <input type="text" id="governorate" required placeholder="اسم المحافظة" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">المركز <span class="text-red-500">*</span></label>
+                                <input type="text" id="center" required placeholder="اسم المركز / المدينة" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">القرية <span class="text-red-500">*</span></label>
+                                <input type="text" id="village" required placeholder="اسم القرية / الناحية" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="border-gray-100">
+
+                    <!-- Group 2 -->
+                    <div>
+                        <h3 class="text-xs font-bold text-blue-700 mb-3 flex items-center gap-1.5">
+                            <i data-lucide="user" class="w-4 h-4"></i>
+                            <span>ثانياً: بيانات المخالف</span>
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">اسم المخالف <span class="text-red-500">*</span></label>
+                                <input type="text" id="violatorName" required placeholder="الاسم رباعي" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">الرقم القومي</label>
+                                <input type="text" id="nationalId" maxlength="14" pattern="[0-9]{14}" placeholder="14 رقم (اختياري)" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition" dir="ltr" style="text-align: right;">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">رقم التليفون</label>
+                                <input type="tel" id="phone" maxlength="15" placeholder="01xxxxxxxxx" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition" dir="ltr" style="text-align: right;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="border-gray-100">
+
+                    <!-- Group 3 -->
+                    <div>
+                        <h3 class="text-xs font-bold text-blue-700 mb-3 flex items-center gap-1.5">
+                            <i data-lucide="file-warning" class="w-4 h-4"></i>
+                            <span>ثالثاً: تفاصيل المخالفة والإجراءات القانونية</span>
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">موقع المخالفة <span class="text-red-500">*</span></label>
+                                <input type="text" id="violationLocation" required placeholder="مثال: ك 12.500 بر أيمن ترعة..." class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">نوع المخالفة <span class="text-red-500">*</span></label>
+                                <input type="text" id="violationType" list="violationTypesList" required placeholder="اختر أو اكتب نوع المخالفة" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                                <datalist id="violationTypesList">
+                                    <option value="ردم في مجرى مائي">
+                                    <option value="بناء بدون ترخيص على منافع الري">
+                                    <option value="تعدي بالزراعة">
+                                    <option value="تشوينات ومخلفات">
+                                    <option value="توصيل صرف صحي / صناعي">
+                                    <option value="ري مخالف / فتحات مخالفة">
+                                </datalist>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">رقم المحضر</label>
+                                <input type="text" id="reportNumber" placeholder="رقم وتاريخ المحضر" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">رقم قرار الإزالة</label>
+                                <input type="text" id="removalDecisionNumber" placeholder="رقم القرار" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">الإجراء المتخذ <span class="text-red-500">*</span></label>
+                                <input type="text" id="actionTaken" list="actionsList" required placeholder="اختر أو اكتب الإجراء" class="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                                <datalist id="actionsList">
+                                    <option value="تمت الإزالة في المهد">
+                                    <option value="تم تحرير محضر مخالفة">
+                                    <option value="صدر قرار إزالة وجاري التنفيذ">
+                                    <option value="تم تنفيذ قرار الإزالة">
+                                    <option value="إحالة للنيابة العامة">
+                                </datalist>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Explicit Save on Firebase Button -->
+                    <div class="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-gray-100">
+                        <button type="button" id="cancelEditBtn" onclick="resetForm()" class="hidden px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-100 transition cursor-pointer">
+                            إلغاء التعديل
+                        </button>
+                        <button type="submit" id="submitBtn" class="flex items-center gap-2 bg-gradient-to-l from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition-all cursor-pointer text-sm">
+                            <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+                            <span id="submitBtnText">حفظ البيانات على Firebase</span>
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Data Table Card -->
+            <section class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50/80 border-b border-gray-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2.5">
+                            <i data-lucide="database" class="w-5 h-5 text-blue-600"></i>
+                            <h2 id="tableSectionTitle" class="text-lg font-bold text-gray-800">سجل المخالفات</h2>
+                            <span id="recordsCount" class="bg-blue-100 text-blue-800 text-xs font-extrabold px-2.5 py-0.5 rounded-full">0</span>
+                        </div>
+                        <p id="privacyHint" class="text-xs text-gray-500 mt-1"></p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div class="relative w-full sm:w-64">
+                            <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="بحث في السجل..." class="w-full rounded-xl border border-gray-300 pr-9 pl-3 py-1.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none">
+                        </div>
+                        <button onclick="exportToExcel()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3.5 py-1.5 rounded-xl text-sm transition cursor-pointer shadow-sm">
+                            <i data-lucide="file-down" class="w-4 h-4"></i>
+                            <span>تنزيل ملف Excel</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right border-collapse whitespace-nowrap text-sm" id="violationsTable">
+                        <thead>
+                            <tr class="bg-slate-800 text-white text-xs font-bold">
+                                <th class="py-3.5 px-4 border-l border-slate-700">م</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">الإدارة</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">الهندسة</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">المحافظة</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">المركز</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">القرية</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">اسم المخالف</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">الرقم القومي</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">رقم التليفون</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">موقع المخالفة</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">نوع المخالفة</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">رقم المحضر</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">رقم قرار الإزالة</th>
+                                <th class="py-3.5 px-4 border-l border-slate-700">الإجراء المتخذ</th>
+                                <th id="colCreatedBy" class="py-3.5 px-4 border-l border-slate-700 hidden">مُدخل البيانات</th>
+                                <th class="py-3.5 px-4 text-center sticky left-0 bg-slate-800">إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-gray-200 bg-white"></tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="py-12 text-center px-4">
+                    <div class="bg-gray-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400">
+                        <i data-lucide="inbox" class="w-7 h-7"></i>
+                    </div>
+                    <p class="text-gray-600 font-bold">لا توجد مخالفات مسجلة في نطاق صلاحياتك حتى الآن</p>
+                    <p class="text-xs text-gray-400 mt-1">أدخل البيانات في النموذج أعلاه ثم اضغط على "حفظ البيانات على Firebase"</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ==================== ADMIN USERS MANAGEMENT MODAL ==================== -->
+    <div id="adminModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-gray-200 overflow-hidden my-8">
+            <div class="bg-indigo-900 text-white px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <i data-lucide="user-plus" class="w-5 h-5 text-indigo-300"></i>
+                    <h3 class="text-lg font-bold">إدارة حسابات المستخدمين والصلاحيات</h3>
+                </div>
+                <button onclick="toggleAdminModal(false)" class="text-indigo-200 hover:text-white cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-6">
+                <!-- Add New User Form -->
+                <form id="addUserForm" class="bg-indigo-50/60 border border-indigo-100 rounded-xl p-4 space-y-4">
+                    <h4 class="text-sm font-bold text-indigo-950">إضافة مستخدم جديد (صلاحية إدخال ورؤية بياناته الخاصة فقط)</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">اسم الموظف / المستخدم <span class="text-red-500">*</span></label>
+                            <input type="text" id="newUserName" required placeholder="مثال: م. أحمد محمود" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 outline-none bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">البريد الإلكتروني للدخول <span class="text-red-500">*</span></label>
+                            <input type="email" id="newUserEmail" required placeholder="user@example.com" dir="ltr" style="text-align: right;" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 outline-none bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">كلمة المرور <span class="text-red-500">*</span></label>
+                            <input type="text" id="newUserPassword" required minlength="6" placeholder="6 أحرف أو أرقام على الأقل" dir="ltr" style="text-align: right;" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 outline-none bg-white">
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" id="addUserBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2 rounded-lg text-sm shadow transition flex items-center gap-2 cursor-pointer">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            <span>إضافة المستخدم وحفظه</span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Registered Users List -->
+                <div>
+                    <h4 class="text-sm font-bold text-gray-800 mb-3">قائمة المستخدمين المسجلين في النظام</h4>
+                    <div class="overflow-x-auto border border-gray-200 rounded-xl">
+                        <table class="w-full text-right text-sm">
+                            <thead class="bg-gray-100 text-gray-700 text-xs font-bold">
+                                <tr>
+                                    <th class="py-2.5 px-4">الاسم</th>
+                                    <th class="py-2.5 px-4">البريد الإلكتروني</th>
+                                    <th class="py-2.5 px-4">كلمة المرور</th>
+                                    <th class="py-2.5 px-4">الصلاحية</th>
+                                    <th class="py-2.5 px-4 text-center">حذف</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody" class="divide-y divide-gray-200">
+                                <!-- Injected dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 left-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-sm font-semibold">
+        <i id="toastIcon" data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>
+        <span id="toastMessage">تم الحفظ بنجاح</span>
+    </div>
+
+    <!-- Firebase SDK Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-analytics.js";
+        import { 
+            getFirestore, collection, addDoc, getDocs, doc, setDoc, updateDoc, deleteDoc, 
+            onSnapshot, query, where, orderBy, serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtCpOnRKl4UOr0TxGtdav73UEfgCaQx4w",
+            authDomain: "data-ac32c.firebaseapp.com",
+            projectId: "data-ac32c",
+            storageBucket: "data-ac32c.firebasestorage.app",
+            messagingSenderId: "375758572486",
+            appId: "1:375758572486:web:4a88bf1b7c1e5a200b00c7",
+            measurementId: "G-LQWFD9X9VW"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        try { getAnalytics(app); } catch (e) {}
+        const db = getFirestore(app);
+
+        // Collections
+        const VIOLATIONS_COL = "violations_records";
+        const USERS_COL = "app_users";
+
+        // Built-in Primary Admin Credentials
+        const ADMIN_EMAIL = "wesamharon798@gmail.com";
+        const ADMIN_PASS = "mohwesam798";
+
+        // Global State
+        window.currentUser = null;
+        window.violationsData = [];
+        window.usersList = [];
+        window.unsubscribeViolations = null;
+        window.unsubscribeUsers = null;
+
+        lucide.createIcons();
+
+        // ==================== AUTHENTICATION LOGIC ====================
+        function normalizeEmail(email) {
+            return (email || "").trim().toLowerCase().replace(/\s+/g, '');
+        }
+
+        // Check if session exists
+        const savedSession = sessionStorage.getItem("violations_user_session");
+        if (savedSession) {
+            window.currentUser = JSON.parse(savedSession);
+            enterApp();
+        }
+
+        document.getElementById("loginForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const email = normalizeEmail(document.getElementById("loginEmail").value);
+            const password = document.getElementById("loginPassword").value.trim();
+            const errorBox = document.getElementById("loginError");
+            const loginBtn = document.getElementById("loginBtn");
+
+            errorBox.classList.add("hidden");
+            loginBtn.disabled = true;
+            document.getElementById("loginBtnText").textContent = "جاري التحقق...";
+
+            try {
+                // 1. Check Primary Admin Account
+                if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
+                    window.currentUser = {
+                        email: ADMIN_EMAIL,
+                        name: "مدير النظام (Admin)",
+                        role: "admin"
+                    };
+                    sessionStorage.setItem("violations_user_session", JSON.stringify(window.currentUser));
+                    enterApp();
+                    return;
+                }
+
+                // 2. Check Users Collection in Firestore
+                let foundUser = null;
+                try {
+                    const q = query(collection(db, USERS_COL), where("email", "==", email));
+                    const snap = await getDocs(q);
+                    snap.forEach(docSnap => {
+                        const data = docSnap.data();
+                        if (data.password === password) {
+                            foundUser = { id: docSnap.id, ...data };
+                        }
+                    });
+                } catch (fireErr) {
+                    // Fallback to localStorage users if Firestore rules block read
+                    const localUsers = JSON.parse(localStorage.getItem("local_app_users") || "[]");
+                    foundUser = localUsers.find(u => normalizeEmail(u.email) === email && u.password === password);
+                }
+
+                if (foundUser) {
+                    window.currentUser = {
+                        email: normalizeEmail(foundUser.email),
+                        name: foundUser.name,
+                        role: "user"
+                    };
+                    sessionStorage.setItem("violations_user_session", JSON.stringify(window.currentUser));
+                    enterApp();
+                } else {
+                    errorBox.textContent = "البريد الإلكتروني أو كلمة المرور غير صحيحة، أو لم يتم تفعيل حسابك من قِبل الأدمن.";
+                    errorBox.classList.remove("hidden");
+                }
+            } finally {
+                loginBtn.disabled = false;
+                document.getElementById("loginBtnText").textContent = "دخول إلى المنظومة";
+            }
+        });
+
+        window.logoutUser = function() {
+            if (window.unsubscribeViolations) window.unsubscribeViolations();
+            if (window.unsubscribeUsers) window.unsubscribeUsers();
+            sessionStorage.removeItem("violations_user_session");
+            window.currentUser = null;
+            document.getElementById("appSection").classList.add("hidden");
+            document.getElementById("loginSection").classList.remove("hidden");
+            document.getElementById("loginForm").reset();
+        };
+
+        function enterApp() {
+            document.getElementById("loginSection").classList.add("hidden");
+            document.getElementById("appSection").classList.remove("hidden");
+            document.getElementById("appSection").classList.add("flex");
+
+            const isAdmin = window.currentUser.role === "admin";
+            document.getElementById("currentUserName").textContent = window.currentUser.name;
+            
+            const roleBadge = document.getElementById("currentUserRoleBadge");
+            if (isAdmin) {
+                roleBadge.textContent = "صلاحية: مدير النظام (عرض الكل)";
+                roleBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30";
+                document.getElementById("adminPanelBtn").classList.remove("hidden");
+                document.getElementById("colCreatedBy").classList.remove("hidden");
+                document.getElementById("tableSectionTitle").textContent = "سجل كافة المخالفات (جميع المستخدمين)";
+                document.getElementById("privacyHint").textContent = "بصفتك الأدمن، يمكنك الاطلاع على كافة السجلات المدخلة من جميع المستخدمين وتصديرها.";
+                syncUsersList();
+            } else {
+                roleBadge.textContent = "صلاحية: مُدخل بيانات";
+                roleBadge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/20 text-blue-200 border border-blue-400/30";
+                document.getElementById("adminPanelBtn").classList.add("hidden");
+                document.getElementById("colCreatedBy").classList.add("hidden");
+                document.getElementById("tableSectionTitle").textContent = "سجل المخالفات الخاصة بك";
+                document.getElementById("privacyHint").textContent = "تظهر هنا البيانات التي قمت بإدخالها بحسابك فقط، ولا يمكن الاطلاع على بيانات المستخدمين الآخرين.";
+            }
+
+            syncViolationsData();
+            lucide.createIcons();
+        }
+
+        // ==================== VIOLATIONS DATA SYNC (ROLE-BASED) ====================
+        function syncViolationsData() {
+            if (window.unsubscribeViolations) window.unsubscribeViolations();
+
+            const isAdmin = window.currentUser.role === "admin";
+            const userEmail = window.currentUser.email;
+
+            try {
+                // Admin fetches ALL records; Regular User fetches ONLY their own records
+                const q = isAdmin 
+                    ? query(collection(db, VIOLATIONS_COL))
+                    : query(collection(db, VIOLATIONS_COL), where("createdByEmail", "==", userEmail));
+
+                window.unsubscribeViolations = onSnapshot(q, (snapshot) => {
+                    document.getElementById("statusDot").className = "w-2 h-2 rounded-full bg-emerald-400";
+                    document.getElementById("statusText").textContent = "متصل بـ Firebase";
+                    document.getElementById("firebaseAlert").classList.add("hidden");
+
+                    let rows = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                    // Sort newest first in client to avoid composite index requirement
+                    rows.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+
+                    window.violationsData = rows;
+                    localStorage.setItem("violations_backup_" + userEmail, JSON.stringify(rows));
+                    renderTable(rows);
+                }, (err) => {
+                    console.warn("Firestore sync error:", err);
+                    loadLocalViolationsFallback();
+                });
+            } catch (e) {
+                loadLocalViolationsFallback();
+            }
+        }
+
+        function loadLocalViolationsFallback() {
+            document.getElementById("statusDot").className = "w-2 h-2 rounded-full bg-orange-400";
+            document.getElementById("statusText").textContent = "حفظ محلي مؤقت";
+            document.getElementById("firebaseAlert").classList.remove("hidden");
+
+            const allLocal = JSON.parse(localStorage.getItem("all_local_violations") || "[]");
+            const isAdmin = window.currentUser.role === "admin";
+            window.violationsData = isAdmin 
+                ? allLocal 
+                : allLocal.filter(item => item.createdByEmail === window.currentUser.email);
+            renderTable(window.violationsData);
+        }
+
+        // ==================== SAVE / UPDATE VIOLATION ====================
+        document.getElementById("violationForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById("submitBtn");
+            submitBtn.disabled = true;
+            submitBtn.classList.add("opacity-70");
+
+            const editId = document.getElementById("editId").value;
+            const record = {
+                administration: document.getElementById("administration").value.trim(),
+                engineering: document.getElementById("engineering").value.trim(),
+                governorate: document.getElementById("governorate").value.trim(),
+                center: document.getElementById("center").value.trim(),
+                village: document.getElementById("village").value.trim(),
+                violatorName: document.getElementById("violatorName").value.trim(),
+                nationalId: document.getElementById("nationalId").value.trim(),
+                phone: document.getElementById("phone").value.trim(),
+                violationLocation: document.getElementById("violationLocation").value.trim(),
+                violationType: document.getElementById("violationType").value.trim(),
+                reportNumber: document.getElementById("reportNumber").value.trim(),
+                removalDecisionNumber: document.getElementById("removalDecisionNumber").value.trim(),
+                actionTaken: document.getElementById("actionTaken").value.trim()
+            };
+
+            try {
+                if (editId) {
+                    await updateDoc(doc(db, VIOLATIONS_COL, editId), record);
+                    showToast("تم تحديث البيانات على Firebase بنجاح");
+                } else {
+                    record.createdByEmail = window.currentUser.email;
+                    record.createdByName = window.currentUser.name;
+                    record.createdAtMs = Date.now();
+                    record.createdAt = serverTimestamp();
+                    await addDoc(collection(db, VIOLATIONS_COL), record);
+                    showToast("تم حفظ البيانات على Firebase بنجاح");
+                }
+                resetForm();
+            } catch (error) {
+                console.error("Firebase save error:", error);
+                // Save locally if Firestore rules restrict writes
+                const allLocal = JSON.parse(localStorage.getItem("all_local_violations") || "[]");
+                if (editId) {
+                    const idx = allLocal.findIndex(x => x.id === editId);
+                    if (idx !== -1) allLocal[idx] = { ...allLocal[idx], ...record };
+                } else {
+                    record.id = "local_" + Date.now();
+                    record.createdByEmail = window.currentUser.email;
+                    record.createdByName = window.currentUser.name;
+                    record.createdAtMs = Date.now();
+                    allLocal.unshift(record);
+                }
+                localStorage.setItem("all_local_violations", JSON.stringify(allLocal));
+                loadLocalViolationsFallback();
+                resetForm();
+                showToast("تم الحفظ محلياً (يرجى مراجعة قواعد Firestore)", true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove("opacity-70");
+            }
+        });
+
+        window.deleteRecord = async function(id) {
+            if (!confirm("هل أنت متأكد من حذف هذا السجل نهائياً؟")) return;
+            try {
+                if (!id.startsWith("local_")) {
+                    await deleteDoc(doc(db, VIOLATIONS_COL, id));
+                } else {
+                    let allLocal = JSON.parse(localStorage.getItem("all_local_violations") || "[]");
+                    allLocal = allLocal.filter(x => x.id !== id);
+                    localStorage.setItem("all_local_violations", JSON.stringify(allLocal));
+                    loadLocalViolationsFallback();
+                }
+                showToast("تم حذف السجل");
+            } catch (err) {
+                showToast("تعذر الحذف", true);
+            }
+        };
+
+        window.editRecord = function(id) {
+            const item = window.violationsData.find(r => r.id === id);
+            if (!item) return;
+
+            document.getElementById("editId").value = item.id;
+            document.getElementById("administration").value = item.administration || "";
+            document.getElementById("engineering").value = item.engineering || "";
+            document.getElementById("governorate").value = item.governorate || "";
+            document.getElementById("center").value = item.center || "";
+            document.getElementById("village").value = item.village || "";
+            document.getElementById("violatorName").value = item.violatorName || "";
+            document.getElementById("nationalId").value = item.nationalId || "";
+            document.getElementById("phone").value = item.phone || "";
+            document.getElementById("violationLocation").value = item.violationLocation || "";
+            document.getElementById("violationType").value = item.violationType || "";
+            document.getElementById("reportNumber").value = item.reportNumber || "";
+            document.getElementById("removalDecisionNumber").value = item.removalDecisionNumber || "";
+            document.getElementById("actionTaken").value = item.actionTaken || "";
+
+            document.getElementById("formTitle").textContent = "تعديل بيانات المخالفة";
+            document.getElementById("submitBtnText").textContent = "حفظ التعديلات على Firebase";
+            document.getElementById("cancelEditBtn").classList.remove("hidden");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        };
+
+        window.resetForm = function() {
+            document.getElementById("violationForm").reset();
+            document.getElementById("editId").value = "";
+            document.getElementById("formTitle").textContent = "إدخال بيانات مخالفة جديدة";
+            document.getElementById("submitBtnText").textContent = "حفظ البيانات على Firebase";
+            document.getElementById("cancelEditBtn").classList.add("hidden");
+        };
+
+        // ==================== RENDER TABLE ====================
+        window.renderTable = function(dataList) {
+            const tbody = document.getElementById("tableBody");
+            const emptyState = document.getElementById("emptyState");
+            const countBadge = document.getElementById("recordsCount");
+            const isAdmin = window.currentUser && window.currentUser.role === "admin";
+
+            countBadge.textContent = dataList.length;
+            tbody.innerHTML = "";
+
+            if (dataList.length === 0) {
+                emptyState.classList.remove("hidden");
+                return;
+            }
+            emptyState.classList.add("hidden");
+
+            dataList.forEach((row, index) => {
+                const tr = document.createElement("tr");
+                tr.className = "hover:bg-blue-50/50 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-bold text-gray-500 border-l border-gray-100">${index + 1}</td>
+                    <td class="py-3 px-4 border-l border-gray-100">${escapeHtml(row.administration)}</td>
+                    <td class="py-3 px-4 border-l border-gray-100">${escapeHtml(row.engineering)}</td>
+                    <td class="py-3 px-4 border-l border-gray-100">${escapeHtml(row.governorate)}</td>
+                    <td class="py-3 px-4 border-l border-gray-100">${escapeHtml(row.center)}</td>
+                    <td class="py-3 px-4 border-l border-gray-100">${escapeHtml(row.village)}</td>
+                    <td class="py-3 px-4 font-bold text-gray-900 border-l border-gray-100">${escapeHtml(row.violatorName)}</td>
+                    <td class="py-3 px-4 font-mono text-xs border-l border-gray-100">${escapeHtml(row.nationalId || "-")}</td>
+                    <td class="py-3 px-4 font-mono text-xs border-l border-gray-100">${escapeHtml(row.phone || "-")}</td>
+                    <td class="py-3 px-4 border-l border-gray-100">${escapeHtml(row.violationLocation)}</td>
+                    <td class="py-3 px-4 border-l border-gray-100">
+                        <span class="bg-red-50 text-red-700 border border-red-200 px-2.5 py-0.5 rounded-full text-xs font-semibold">${escapeHtml(row.violationType)}</span>
+                    </td>
+                    <td class="py-3 px-4 border-l border-gray-100">${escapeHtml(row.reportNumber || "-")}</td>
+                    <td class="py-3 px-4 border-l border-gray-100">${escapeHtml(row.removalDecisionNumber || "-")}</td>
+                    <td class="py-3 px-4 border-l border-gray-100">
+                        <span class="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-full text-xs font-semibold">${escapeHtml(row.actionTaken)}</span>
+                    </td>
+                    ${isAdmin ? `<td class="py-3 px-4 border-l border-gray-100 text-xs text-indigo-700 font-semibold">${escapeHtml(row.createdByName || row.createdByEmail || "-")}</td>` : ""}
+                    <td class="py-3 px-4 text-center sticky left-0 bg-white shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.05)]">
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="editRecord('${row.id}')" title="تعديل" class="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition cursor-pointer">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteRecord('${row.id}')" title="حذف" class="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition cursor-pointer">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        };
+
+        window.filterTable = function() {
+            const term = document.getElementById("searchInput").value.toLowerCase().trim();
+            if (!term) {
+                renderTable(window.violationsData);
+                return;
+            }
+            const filtered = window.violationsData.filter(item =>
+                Object.values(item).some(val => String(val).toLowerCase().includes(term))
+            );
+            renderTable(filtered);
+        };
+
+        // ==================== ADMIN USER MANAGEMENT ====================
+        window.toggleAdminModal = function(show) {
+            const modal = document.getElementById("adminModal");
+            if (show) {
+                modal.classList.remove("hidden");
+                lucide.createIcons();
+            } else {
+                modal.classList.add("hidden");
+            }
+        };
+
+        function syncUsersList() {
+            if (window.unsubscribeUsers) window.unsubscribeUsers();
+            try {
+                window.unsubscribeUsers = onSnapshot(collection(db, USERS_COL), (snap) => {
+                    window.usersList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    localStorage.setItem("local_app_users", JSON.stringify(window.usersList));
+                    renderUsersTable();
+                }, () => {
+                    window.usersList = JSON.parse(localStorage.getItem("local_app_users") || "[]");
+                    renderUsersTable();
+                });
+            } catch (e) {
+                window.usersList = JSON.parse(localStorage.getItem("local_app_users") || "[]");
+                renderUsersTable();
+            }
+        }
+
+        document.getElementById("addUserForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const name = document.getElementById("newUserName").value.trim();
+            const email = normalizeEmail(document.getElementById("newUserEmail").value);
+            const password = document.getElementById("newUserPassword").value.trim();
+
+            if (email === ADMIN_EMAIL) {
+                showToast("هذا البريد مسجل بالفعل كمدير للنظام", true);
+                return;
+            }
+
+            if (window.usersList.some(u => normalizeEmail(u.email) === email)) {
+                showToast("هذا البريد الإلكتروني مضاف مسبقاً!", true);
+                return;
+            }
+
+            const btn = document.getElementById("addUserBtn");
+            btn.disabled = true;
+
+            const newUser = {
+                name,
+                email,
+                password,
+                role: "user",
+                createdAtMs: Date.now()
+            };
+
+            try {
+                await addDoc(collection(db, USERS_COL), newUser);
+                showToast("تم إضافة المستخدم بنجاح");
+                document.getElementById("addUserForm").reset();
+            } catch (err) {
+                const localUsers = JSON.parse(localStorage.getItem("local_app_users") || "[]");
+                newUser.id = "local_u_" + Date.now();
+                localUsers.push(newUser);
+                localStorage.setItem("local_app_users", JSON.stringify(localUsers));
+                window.usersList = localUsers;
+                renderUsersTable();
+                document.getElementById("addUserForm").reset();
+                showToast("تم إضافة المستخدم محلياً");
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        window.deleteAppUser = async function(id) {
+            if (!confirm("هل تريد حذف هذا المستخدم؟ لن يتمكن من تسجيل الدخول مرة أخرى.")) return;
+            try {
+                if (!id.startsWith("local_u_")) {
+                    await deleteDoc(doc(db, USERS_COL, id));
+                } else {
+                    const localUsers = JSON.parse(localStorage.getItem("local_app_users") || "[]").filter(u => u.id !== id);
+                    localStorage.setItem("local_app_users", JSON.stringify(localUsers));
+                    window.usersList = localUsers;
+                    renderUsersTable();
+                }
+                showToast("تم حذف المستخدم");
+            } catch (e) {
+                showToast("حدث خطأ أثناء حذف المستخدم", true);
+            }
+        };
+
+        function renderUsersTable() {
+            const tbody = document.getElementById("usersTableBody");
+            tbody.innerHTML = `
+                <tr class="bg-amber-50/60">
+                    <td class="py-2.5 px-4 font-bold text-gray-900">مدير النظام (أنت)</td>
+                    <td class="py-2.5 px-4 font-mono text-xs">${ADMIN_EMAIL}</td>
+                    <td class="py-2.5 px-4 font-mono text-xs text-gray-400">••••••••</td>
+                    <td class="py-2.5 px-4"><span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-xs font-bold">أدمن (كامل الصلاحيات)</span></td>
+                    <td class="py-2.5 px-4 text-center text-xs text-gray-400">أساسي</td>
+                </tr>
+            `;
+
+            window.usersList.forEach(u => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td class="py-2.5 px-4 font-semibold">${escapeHtml(u.name)}</td>
+                    <td class="py-2.5 px-4 font-mono text-xs">${escapeHtml(u.email)}</td>
+                    <td class="py-2.5 px-4 font-mono text-xs">${escapeHtml(u.password)}</td>
+                    <td class="py-2.5 px-4"><span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-semibold">مُدخل بيانات (بياناته فقط)</span></td>
+                    <td class="py-2.5 px-4 text-center">
+                        <button onclick="deleteAppUser('${u.id}')" class="text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition cursor-pointer" title="حذف المستخدم">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        // ==================== EXPORT TO EXCEL (.XLSX) ====================
+        window.exportToExcel = function() {
+            if (!window.violationsData || window.violationsData.length === 0) {
+                showToast("لا توجد بيانات متاحة للتصدير!", true);
+                return;
+            }
+
+            const isAdmin = window.currentUser && window.currentUser.role === "admin";
+
+            const excelRows = window.violationsData.map((row, idx) => {
+                const obj = {
+                    "م": idx + 1,
+                    "الإدارة": row.administration || "",
+                    "الهندسة": row.engineering || "",
+                    "المحافظة": row.governorate || "",
+                    "المركز": row.center || "",
+                    "القرية": row.village || "",
+                    "اسم المخالف": row.violatorName || "",
+                    "الرقم القومي": row.nationalId || "",
+                    "رقم التليفون": row.phone || "",
+                    "موقع المخالفة": row.violationLocation || "",
+                    "نوع المخالفة": row.violationType || "",
+                    "رقم المحضر": row.reportNumber || "",
+                    "رقم قرار الإزالة": row.removalDecisionNumber || "",
+                    "الإجراء المتخذ": row.actionTaken || ""
+                };
+                if (isAdmin) {
+                    obj["مُدخل البيانات"] = row.createdByName || row.createdByEmail || "";
+                }
+                return obj;
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(excelRows);
+            if (!worksheet["!views"]) worksheet["!views"] = [];
+            worksheet["!views"].push({ rightToLeft: true });
+
+            worksheet["!cols"] = [
+                { wch: 5 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 },
+                { wch: 18 }, { wch: 28 }, { wch: 18 }, { wch: 16 }, { wch: 28 },
+                { wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 25 }, { wch: 22 }
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            workbook.Workbook = { Views: [{ RTL: true }] };
+            XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المخالفات");
+
+            const today = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(workbook, `سجل_المخالفات_${today}.xlsx`);
+            showToast("تم تنزيل ملف الإكسيل بنجاح");
+        };
+
+        // Helpers
+        function escapeHtml(text) {
+            if (!text) return "";
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showToast(msg, isWarning = false) {
+            const toast = document.getElementById("toast");
+            const toastMsg = document.getElementById("toastMessage");
+            const toastIcon = document.getElementById("toastIcon");
+            toastMsg.textContent = msg;
+            toastIcon.className = isWarning ? "w-5 h-5 text-amber-400" : "w-5 h-5 text-emerald-400";
+            toast.classList.remove("translate-y-20", "opacity-0");
+            setTimeout(() => {
+                toast.classList.add("translate-y-20", "opacity-0");
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
